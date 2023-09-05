@@ -2,7 +2,7 @@ from flask import Flask, jsonify, g
 from pydanql.base import Database
 from flask import Flask, render_template, g, jsonify, redirect, url_for, request, Response
 from pydanql.base import Database
-from pydanql.table import Table
+from pydanql.table import Table, get_all_annotations
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -20,15 +20,18 @@ from functools import wraps
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, verify_jwt_in_request
 
 
-
 def register_routes(app: Flask):
     jwt = JWTManager(app)
 
     @app.before_request
     def before_request():
-        g.db = Database(**app.config['DB'])
-        for table in app.config['TABLES']:
-            setattr(g.db, table, Table(g.db, app.config['TABLES'][table]['model']))
+        g.db = Database(**app.config['PYDANQL_DB'])
+        g.db.tables = {}
+        for table in app.config['PYDANQL_TABLES']:
+            # Add the table as a database attribute.
+            setattr(g.db, table.slug, Table(g.db, table.model))
+            # Add the configureation for later use in the routes.
+            g.db.tables[table.slug] = table
 
     @app.after_request
     def after_request(response):
@@ -37,14 +40,14 @@ def register_routes(app: Flask):
         return response
 
 
-
     # Define the decorator function
     def extend_query_for(endpoint):
         def decorator(f):
             @wraps(f)  # Preserve the docstring and other metadata of the original function
             def wrapper(*args, **kwargs):
                 table = kwargs.get('table')
-                filter_function = app.config['TABLES'].get(table, {}).get('filter')
+                filter_function = g.db.tables[table]._filter
+                #filter_function = app.config['TABLES'].get(table, {}).get('filter')
                 if filter_function:
 
                     filter_result = filter_function(endpoint, table)
@@ -62,15 +65,14 @@ def register_routes(app: Flask):
     def find(table, extendet_query_kwargs={}):
         combined_args = list(request.args.items()) + list(extendet_query_kwargs.items())
 
-
-        if table not in app.config['TABLES']:
+        if table not in g.db.tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        allowed_query_fields = app.config['TABLES'][table]['query']
-        allowed_return_fields = app.config['TABLES'][table]['return']
+        allowed_query_fields = g.db.tables[table].allowed_query_fields
+        allowed_return_fields = g.db.tables[table].visible_fields
 
-        ModelClass = app.config['TABLES'][table]['model']
-        model_fields = ModelClass.__annotations__
+        ModelClass = g.db.tables[table].model
+        model_fields = get_all_annotations(ModelClass)
 
         offset = request.args.get('offset', default=None, type=int)
         count = request.args.get('count', default=None, type=int)
@@ -140,11 +142,8 @@ def register_routes(app: Flask):
     def delete(table, entry_id, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in app.config['TABLES']:
-            return jsonify({'error': f'{table} is not allowed'}), 400 # Bad Request
-
-        # Get the model class for this table
-        ModelClass = app.config['TABLES'][table]['model']
+        if table not in g.db.tables:
+            return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
         try:
             # Find the entry to delete
@@ -170,12 +169,12 @@ def register_routes(app: Flask):
     def get(table, entry_id, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in app.config['TABLES']:
+        if table not in g.db.tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        # Get the fields to return and the model class for this table
-        allowed_return_fields = app.config['TABLES'][table]['return']
-        ModelClass = app.config['TABLES'][table]['model']
+        allowed_return_fields = g.db.tables[table].visible_fields
+
+        ModelClass = g.db.tables[table].model
 
         try:
             # Find the entry
@@ -203,11 +202,10 @@ def register_routes(app: Flask):
     def create(table, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in app.config['TABLES']:
-            return jsonify({'error': f'{table} is not allowed'}), 400 # Bad Request
+        if table not in g.db.tables:
+            return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        # Get the model class for this table
-        ModelClass = app.config['TABLES'][table]['model']
+        ModelClass = g.db.tables[table].model
 
         try:
             # Validate and parse incoming JSON payload
@@ -242,10 +240,10 @@ def register_routes(app: Flask):
     @extend_query_for('replace')
     def replace(table, slug, extendet_query_kwargs={}):
 
-        if table not in app.config['TABLES']:
-            return jsonify({'error': f'{table} is not allowed'}), 400
+        if table not in g.db.tables:
+            return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        ModelClass = app.config['TABLES'][table]['model']
+        ModelClass = g.db.tables[table].model
 
         data = request.json
         existing_entry = getattr(g.db, table).find_one(slug=slug, **extendet_query_kwargs)

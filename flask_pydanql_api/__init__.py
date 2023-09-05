@@ -18,3 +18,18 @@ class PydanqlAPI:
 
         # You can also add a blueprint here if you want
         # app.register_blueprint(my_blueprint)
+
+
+class Endpoint():
+    slug = None
+    model = None
+    allowed_query_fields = []
+    visible_fields = []
+
+    def _filter(query_type, query_table):
+        return {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.slug is None or cls.model is None:
+            raise NotImplementedError("Endpoint subclasses must define 'slug' and 'model' attributes")
