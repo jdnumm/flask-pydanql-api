@@ -21,33 +21,31 @@ Flask-PydanqlAPI is a Flask extension that offers seamless integration with the 
 Here's a minimal example to show how to set up the Flask-PydanqlAPI extension without authentication and custom filtering.
 
 ```python
-from flask import Flask
-from flask_pydanql_api import PydanqlAPI
-from pydanql.model import ObjectBaseModel
+# Easily create a full-fledged API with all CRUD actions. Create, Read, Update
+# and Delete. Advanced search options, extensible, and even many more.
+# 
+# GET Books from /books/find?year__range=1950,1960&title__like=Lord
 
-class Car(ObjectBaseModel):
-    brand: str
-    model: str
-    year: int
-    color: str
+from flask import Flask
+from flask_pydanql_api import PydanqlAPI, Endpoint
+from pydanql.model import ObjectBaseModel
 
 app = Flask(__name__)
 
-app.config['DB'] = {
-    'database': 'testdb',
-    'user': 'testuser',
-    'password': 'testpass',
-    'host': 'localhost',
-    'port': '5432'
-}
+# Define youre Model 
+class Book(ObjectBaseModel):
+    title: str
+    author: str
+    year: int
 
-app.config['TABLES'] = {
-    'cars': {
-        'query': ['brand', 'color', 'year'],
-        'return': ['id', 'brand', 'color', 'year', 'model'],
-        'model': Car
-    }
-}
+# Define youre API-Endpoint
+class Books(Endpoint):
+    slug = 'books'
+    model = Book
+
+# Connect to your postgreSQL Database
+app.config['PYDANQL_API_DB'] = { 'database': ..., 'user': ..., 'password': ... }
+app.config['PYDANQL_API_ENDPOINTS'] = [Books]
 
 PydanqlAPI(app)
 
@@ -61,8 +59,9 @@ Here's an example that includes JWT authentication and custom filtering.
 
 ```python
 from flask import Flask, request, jsonify
-from flask_pydanql_api import PydanqlAPI
+from flask_pydanql_api import PydanqlAPI, Endpoint
 from pydanql.model import ObjectBaseModel
+from pydanql.table import Table
 from datetime import datetime
 from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity
 
@@ -83,41 +82,38 @@ class Car(ObjectBaseModel):
         return f"A {self.color} {self.model} build by {self.brand}"
 
 
-def filter(query_type, query_table):
-    verify_jwt_in_request()
-    current_user = get_jwt_identity()
-    if query_type == 'find':
-        return {'owner': current_user}
-    if query_type == 'get':
-        return {'owner': current_user}
-    if query_type == 'create':
-        return {'owner': current_user}
-    if query_type == 'delete':
-        return {'owner': current_user}
+class Cars(Endpoint):
+    slug = 'cars' # part of the url to accesse the table 
+    model = Car # The object for table entries
+    allowed_query_fields = ['brand', 'color', 'year', 'owner']
+    visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
 
-    return jsonify({'error': 'Not todo', 'detail': 'todo'}), 405
+    @staticmethod
+    def _filter(query_type, query_table):
+        verify_jwt_in_request()
+        current_user = get_jwt_identity()
+        if query_type == 'find':
+            return {'owner': current_user}
+        if query_type == 'get':
+            return {'owner': current_user}
+        if query_type == 'create':
+            return {'owner': current_user}
+        if query_type == 'delete':
+            return {'owner': current_user}
+
+        return jsonify({'error': 'Not todo', 'detail': 'todo'}), 405
 
 
 app = Flask(__name__)
-
-app.config['DB'] = {
+app.config['JWT_SECRET_KEY'] = 'super-secret'
+app.config['PYDANQL_API_DB'] = {
     'database': 'testdb',
     'user': 'testuser',
     'password': 'testpass',
     'host': 'localhost',
     'port': '5432'
 }
-
-app.config['JWT_SECRET_KEY'] = 'super-secret'
-
-app.config['TABLES'] = {
-            'cars': {
-                'query': ['brand', 'color', 'year', 'owner'],
-                'return': ['id', 'owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description'],
-                'model': Car,
-                'filter': filter
-            }
-        }
+app.config['PYDANQL_API_ENDPOINTS'] = [Cars]
 
 PydanqlAPI(app)
 

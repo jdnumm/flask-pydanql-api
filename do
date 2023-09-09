@@ -13,6 +13,14 @@ case "$1" in
         setup) 
             pipenv install --dev
         ;;
-        *) echo "Use one of the following args: run, shell, edit, setup"
+        build)
+            rm -rf build
+            rm -rf dist
+            python setup.py sdist bdist_wheel
+        ;;
+        distribute)
+            twine upload dist/*
+        ;;
+        *) echo "Use one of the following args: run, shell, edit, setup, build, distribute"
         ;;
 esac

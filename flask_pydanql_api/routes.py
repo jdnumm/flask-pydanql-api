@@ -25,9 +25,9 @@ def register_routes(app: Flask):
 
     @app.before_request
     def before_request():
-        g.db = Database(**app.config['PYDANQL_DB'])
+        g.db = Database(**app.config['PYDANQL_API_DB'])
         g.db.tables = {}
-        for table in app.config['PYDANQL_TABLES']:
+        for table in app.config['PYDANQL_API_ENDPOINTS']:
             # Add the table as a database attribute.
             setattr(g.db, table.slug, Table(g.db, table.model))
             # Add the configureation for later use in the routes.
@@ -60,7 +60,7 @@ def register_routes(app: Flask):
         return decorator
 
 
-    @app.route('/<table>/find_many', methods=['GET'])
+    @app.route('/<table>/find', methods=['GET'])
     @extend_query_for('find')
     def find(table, extendet_query_kwargs={}):
         combined_args = list(request.args.items()) + list(extendet_query_kwargs.items())
@@ -262,5 +262,4 @@ def register_routes(app: Flask):
         getattr(g.db, table).replace(new_entry)
 
         return redirect(url_for('get', table=table, entry_id=new_entry.slug))
-        #return jsonify(new_entry.dict()), 200
 

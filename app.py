@@ -5,7 +5,6 @@ from pydanql.table import Table
 from datetime import datetime
 from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity
 
-
 class Car(ObjectBaseModel):
     brand: str
     model: str
@@ -47,14 +46,14 @@ class Cars(Endpoint):
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = 'super-secret'
-app.config['PYDANQL_DB'] = {
+app.config['PYDANQL_API_DB'] = {
     'database': 'testdb',
     'user': 'testuser',
     'password': 'testpass',
     'host': 'localhost',
     'port': '5432'
 }
-app.config['PYDANQL_TABLES'] = [Cars]
+app.config['PYDANQL_API_ENDPOINTS'] = [Cars]
 
 PydanqlAPI(app)
 
