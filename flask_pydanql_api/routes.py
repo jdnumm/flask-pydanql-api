@@ -12,12 +12,8 @@ from typing import Type
 
 from http import HTTPStatus
 
-from time import sleep
-
 from pydantic import BaseModel, ValidationError, parse_obj_as
-
 from functools import wraps
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, verify_jwt_in_request
 
 
 def register_routes(app: Flask):
