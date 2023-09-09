@@ -17,7 +17,6 @@ from functools import wraps
 
 
 def register_routes(app: Flask):
-    jwt = JWTManager(app)
 
     @app.before_request
     def before_request():

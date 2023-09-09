@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='Flask-Pydanql-API',
-    version='0.0.1-alpha',
+    version='0.0.3-alpha',
     packages=find_packages(),
     author='Daniel Nümm',
     author_email='oss@blacktre.es',

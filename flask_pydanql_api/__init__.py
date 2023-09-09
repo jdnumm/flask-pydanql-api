@@ -1,4 +1,7 @@
 from flask import Flask, g
+from pydanql.table import get_all_annotations
+import inspect
+
 
 class PydanqlAPI:
 
@@ -11,20 +14,17 @@ class PydanqlAPI:
 
         # You can add configuration options here if needed
         app.config.setdefault('MY_EXTENSION_OPTION', 'default_value')
-       
+
         # Registering routes
         from .routes import register_routes
         register_routes(app)
-
-        # You can also add a blueprint here if you want
-        # app.register_blueprint(my_blueprint)
 
 
 class Endpoint():
     slug = None
     model = None
-    allowed_query_fields = []
-    visible_fields = []
+    allowed_query_fields = None
+    visible_fields = None
 
     def _filter(query_type, query_table):
         return {}
@@ -33,3 +33,17 @@ class Endpoint():
         super().__init_subclass__(**kwargs)
         if cls.slug is None or cls.model is None:
             raise NotImplementedError("Endpoint subclasses must define 'slug' and 'model' attributes")
+
+        # Get all annotated fields from cls.model
+        fields = list(get_all_annotations(cls.model).keys())
+
+        # Get all methods from cls.model, filtering out special/magic methods
+        # and methods defined in parent classes
+        methods = [name for name, member in inspect.getmembers(cls.model) 
+                             if inspect.isfunction(member) 
+                             and not (name.startswith('__') and name.endswith('__')) 
+                             and member.__qualname__.startswith(cls.model.__name__ + '.')]
+
+        # Set cls.visible_fields and cls.allowed_query_fields to the model fields if they are None
+        cls.visible_fields = fields + methods if cls.visible_fields is None else cls.visible_fields
+        cls.allowed_query_fields = fields + methods if cls.allowed_query_fields is None else cls.allowed_query_fields

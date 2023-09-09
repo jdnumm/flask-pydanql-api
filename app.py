@@ -3,7 +3,7 @@ from flask_pydanql_api import PydanqlAPI, Endpoint
 from pydanql.model import ObjectBaseModel
 from pydanql.table import Table
 from datetime import datetime
-from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity
+from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity, JWTManager
 
 class Car(ObjectBaseModel):
     brand: str
@@ -25,8 +25,8 @@ class Car(ObjectBaseModel):
 class Cars(Endpoint):
     slug = 'cars' # part of the url to accesse the table 
     model = Car # The object for table entries
-    allowed_query_fields = ['brand', 'color', 'year', 'owner']
-    visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
+    #allowed_query_fields = ['brand', 'color', 'year', 'owner']
+    #visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
 
     @staticmethod
     def _filter(query_type, query_table):
@@ -56,6 +56,9 @@ app.config['PYDANQL_API_DB'] = {
 app.config['PYDANQL_API_ENDPOINTS'] = [Cars]
 
 PydanqlAPI(app)
+JWTManager(app)
+
+
 
 @app.route('/login', methods=['POST'])
 def login():
