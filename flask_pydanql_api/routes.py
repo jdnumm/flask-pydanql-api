@@ -1,18 +1,8 @@
-from flask import Flask, jsonify, g
-from pydanql.base import Database
-from flask import Flask, render_template, g, jsonify, redirect, url_for, request, Response
+from flask import Flask, g, jsonify, redirect, url_for, request
 from pydanql.base import Database
 from pydanql.table import Table, get_all_annotations
 from uuid import uuid4
-
-from pydantic import ValidationError
-
-from uuid import UUID, uuid4
-from typing import Type
-
-from http import HTTPStatus
-
-from pydantic import BaseModel, ValidationError, parse_obj_as
+from pydantic import ValidationError, parse_obj_as
 from functools import wraps
 
 
@@ -20,20 +10,19 @@ def register_routes(app: Flask):
 
     @app.before_request
     def before_request():
-        g.db = Database(**app.config['PYDANQL_API_DB'])
-        g.db.tables = {}
+        g.pydanql_db = Database(**app.config['PYDANQL_API_DB'])
+        g.pydanql_tables = {}
         for table in app.config['PYDANQL_API_ENDPOINTS']:
             # Add the table as a database attribute.
-            setattr(g.db, table.slug, Table(g.db, table.model))
+            setattr(g.pydanql_db, table.slug, Table(g.pydanql_db, table.model))
             # Add the configureation for later use in the routes.
-            g.db.tables[table.slug] = table
+            g.pydanql_tables[table.slug] = table
 
     @app.after_request
     def after_request(response):
         print("After request: Close Database!")
-        g.db.close()
+        g.pydanql_db.close()
         return response
-
 
     # Define the decorator function
     def extend_query_for(endpoint):
@@ -41,8 +30,8 @@ def register_routes(app: Flask):
             @wraps(f)  # Preserve the docstring and other metadata of the original function
             def wrapper(*args, **kwargs):
                 table = kwargs.get('table')
-                filter_function = g.db.tables[table]._filter
-                #filter_function = app.config['TABLES'].get(table, {}).get('filter')
+                filter_function = g.pydanql_tables[table]._filter
+                # filter_function = app.config['TABLES'].get(table, {}).get('filter')
                 if filter_function:
 
                     filter_result = filter_function(endpoint, table)
@@ -54,19 +43,18 @@ def register_routes(app: Flask):
             return wrapper
         return decorator
 
-
     @app.route('/<table>/find', methods=['GET'])
     @extend_query_for('find')
     def find(table, extendet_query_kwargs={}):
         combined_args = list(request.args.items()) + list(extendet_query_kwargs.items())
 
-        if table not in g.db.tables:
+        if table not in g.pydanql_tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        allowed_query_fields = g.db.tables[table].allowed_query_fields
-        allowed_return_fields = g.db.tables[table].visible_fields
+        allowed_query_fields = g.pydanql_tables[table].allowed_query_fields
+        allowed_return_fields = g.pydanql_tables[table].visible_fields
 
-        ModelClass = g.db.tables[table].model
+        ModelClass = g.pydanql_tables[table].model
         model_fields = get_all_annotations(ModelClass)
 
         offset = request.args.get('offset', default=None, type=int)
@@ -121,7 +109,7 @@ def register_routes(app: Flask):
                     return jsonify({'error': f'Invalid value for {key}', 'detail': e.errors()}), 400
                 filters[key] = validated_value
 
-        entrys = getattr(g.db, table).find_many(offset=offset, count=count, sort=sort, **filters)
+        entrys = getattr(g.pydanql_db, table).find_many(offset=offset, count=count, sort=sort, **filters)
 
         results = [{
             **{k: v for k, v in entry.dict().items() if k in allowed_return_fields}, 
@@ -131,25 +119,24 @@ def register_routes(app: Flask):
 
         return jsonify(results=results)
 
-
     @app.route('/<table>/<entry_id>', methods=['DELETE'])
     @extend_query_for('delete')
     def delete(table, entry_id, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in g.db.tables:
+        if table not in g.pydanql_tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
         try:
             # Find the entry to delete
-            entry_to_delete = getattr(g.db, table).find_one(slug=entry_id, **extendet_query_kwargs)
+            entry_to_delete = getattr(g.pydanql_db, table).find_one(slug=entry_id, **extendet_query_kwargs)
 
             # Check if the entry exists
             if not entry_to_delete:
                 return jsonify({'error': f'No entry found with id {entry_id}'}), 404 # Not Found
 
             # Delete the entry
-            getattr(g.db, table).delete(entry_to_delete)
+            getattr(g.pydanql_db, table).delete(entry_to_delete)
 
             return jsonify({'success': f'Entry with id {entry_id} successfully deleted'}), 200  # OK
 
@@ -158,22 +145,21 @@ def register_routes(app: Flask):
             print(str(e))
             return jsonify({'error': 'Internal Server Error'}), 500  # Internal Server Error
 
-
     @app.route('/<table>/<entry_id>', methods=['GET'])
     @extend_query_for('get')
     def get(table, entry_id, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in g.db.tables:
+        if table not in g.pydanql_tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        allowed_return_fields = g.db.tables[table].visible_fields
+        allowed_return_fields = g.pydanql_tables[table].visible_fields
 
-        ModelClass = g.db.tables[table].model
+        ModelClass = g.pydanql_tables[table].model
 
         try:
             # Find the entry
-            entry = getattr(g.db, table).find_one(slug=entry_id, **extendet_query_kwargs)
+            entry = getattr(g.pydanql_db, table).find_one(slug=entry_id, **extendet_query_kwargs)
 
             # Check if the entry exists
             if not entry:
@@ -191,16 +177,18 @@ def register_routes(app: Flask):
             print(str(e))
             return jsonify({'error': 'Internal Server Error'}), 500  # Internal Server Error
 
-
     @app.route('/<table>/create', methods=['POST'])
     @extend_query_for('create')
     def create(table, extendet_query_kwargs={}):
 
         # Check if the table is allowed
-        if table not in g.db.tables:
+        if table not in g.pydanql_tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
+        
+        if request.json is None:
+            return jsonify({"error": "Bad Request", "message": "No JSON payload provided"}), 400
 
-        ModelClass = g.db.tables[table].model
+        ModelClass = g.pydanql_tables[table].model
 
         try:
             # Validate and parse incoming JSON payload
@@ -215,10 +203,10 @@ def register_routes(app: Flask):
             new_entry.slug = uuid4().hex
 
             # Add the new entry to the database
-            getattr(g.db, table).add(new_entry)
+            getattr(g.pydanql_db, table).add(new_entry)
 
             # Commit the changes (if needed depending on your ORM)
-            # g.db.commit()
+            # g.pydanql_db.commit()
 
             # Return the created entry
             return redirect(url_for('get', table=table, entry_id=new_entry.slug))
@@ -230,18 +218,17 @@ def register_routes(app: Flask):
 
         return jsonify('boom'), 400
 
-
     @app.route('/<table>/<slug>', methods=['PUT'])
     @extend_query_for('replace')
     def replace(table, slug, extendet_query_kwargs={}):
 
-        if table not in g.db.tables:
+        if table not in g.pydanql_tables:
             return jsonify({'error': f'{table} is not allowed'}), 400  # Bad Request
 
-        ModelClass = g.db.tables[table].model
+        ModelClass = g.pydanql_tables[table].model
 
         data = request.json
-        existing_entry = getattr(g.db, table).find_one(slug=slug, **extendet_query_kwargs)
+        existing_entry = getattr(g.pydanql_db, table).find_one(slug=slug, **extendet_query_kwargs)
 
         if not existing_entry:
             return jsonify({'error': 'Entry not found'}), 404
@@ -254,7 +241,6 @@ def register_routes(app: Flask):
         new_entry.id = existing_entry.id
         new_entry.slug = existing_entry.slug
 
-        getattr(g.db, table).replace(new_entry)
+        getattr(g.pydanql_db, table).replace(new_entry)
 
         return redirect(url_for('get', table=table, entry_id=new_entry.slug))
-

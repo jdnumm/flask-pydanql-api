@@ -1,4 +1,4 @@
-from flask import Flask, g
+from flask import Flask
 from pydanql.table import get_all_annotations
 import inspect
 
@@ -26,6 +26,7 @@ class Endpoint():
     allowed_query_fields = None
     visible_fields = None
 
+    @staticmethod
     def _filter(query_type, query_table):
         return {}
 
@@ -40,9 +41,9 @@ class Endpoint():
         # Get all methods from cls.model, filtering out special/magic methods
         # and methods defined in parent classes
         methods = [name for name, member in inspect.getmembers(cls.model) 
-                             if inspect.isfunction(member) 
-                             and not (name.startswith('__') and name.endswith('__')) 
-                             and member.__qualname__.startswith(cls.model.__name__ + '.')]
+                   if inspect.isfunction(member) 
+                   and not (name.startswith('__') and name.endswith('__')) 
+                   and member.__qualname__.startswith(cls.model.__name__ + '.')]
 
         # Set cls.visible_fields and cls.allowed_query_fields to the model fields if they are None
         cls.visible_fields = fields + methods if cls.visible_fields is None else cls.visible_fields

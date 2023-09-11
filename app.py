@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_pydanql_api import PydanqlAPI, Endpoint
 from pydanql.model import ObjectBaseModel
-from pydanql.table import Table
 from datetime import datetime
 from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity, JWTManager
+
 
 class Car(ObjectBaseModel):
     brand: str
@@ -23,10 +23,10 @@ class Car(ObjectBaseModel):
 
 
 class Cars(Endpoint):
-    slug = 'cars' # part of the url to accesse the table 
-    model = Car # The object for table entries
-    #allowed_query_fields = ['brand', 'color', 'year', 'owner']
-    #visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
+    slug = 'cars'  # part of the url to accesse the table 
+    model = Car  # The object for table entries
+    # allowed_query_fields = ['brand', 'color', 'year', 'owner']
+    # visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
 
     @staticmethod
     def _filter(query_type, query_table):
@@ -59,18 +59,21 @@ PydanqlAPI(app)
 JWTManager(app)
 
 
-
 @app.route('/login', methods=['POST'])
 def login():
+    if request.json is None:
+        return jsonify({"error": "Bad Request", "message": "No JSON payload provided"}), 400
+
     username = request.json.get('username', None)
     password = request.json.get('password', None)
-
+    
     # In a real-world app, you'd validate these credentials against a database
     if password != 'password':
         return jsonify({'login': False}), 401
 
     access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
