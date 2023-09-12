@@ -27,20 +27,18 @@ def register_routes(app: Flask):
     # Define the decorator function
     def extend_query_for(endpoint):
         def decorator(f):
-            @wraps(f)  # Preserve the docstring and other metadata of the original function
+            @wraps(f)  
             def wrapper(*args, **kwargs):
                 table = kwargs.get('table')
                 if table not in g.pydanql_tables:
-                    return jsonify({'error': f'There is no endpoint named: {table}'}), 404  # Bad Request
+                    return jsonify({'error': f'There is no endpoint named: {table}'}), 404
                 filter_function = g.pydanql_tables[table]._filter
-                # filter_function = app.config['TABLES'].get(table, {}).get('filter')
                 if filter_function:
-
+                    print(filter_function)
                     filter_result = filter_function(endpoint, table)
+                    print(filter_result)
                     if isinstance(filter_result, dict):
                         kwargs['extendet_query_kwargs'] = filter_result
-                    else:
-                        return filter_result
                 return f(*args, **kwargs)
             return wrapper
         return decorator
@@ -206,9 +204,8 @@ def register_routes(app: Flask):
         return jsonify('boom'), 400
 
     @app.route('/<table>/<slug>', methods=['PUT'])
-    @extend_query_for('replace')
-    def replace(table, slug, extendet_query_kwargs={}):
-
+    @extend_query_for('update')
+    def update(table, slug, extendet_query_kwargs={}):
         ModelClass = g.pydanql_tables[table].model
 
         data = request.json
@@ -217,13 +214,11 @@ def register_routes(app: Flask):
         if not existing_entry:
             return jsonify({'error': 'Entry not found'}), 404
 
+        updated_data = {**existing_entry.dict(), **data}
         try:
-            new_entry = ModelClass(**data)
+            new_entry = ModelClass(**updated_data)
         except ValidationError as e:
             return jsonify({'error': 'Invalid data', 'details': e.errors()}), 400
-
-        new_entry.id = existing_entry.id
-        new_entry.slug = existing_entry.slug
 
         getattr(g.pydanql_db, table).replace(new_entry)
 

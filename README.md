@@ -1,9 +1,9 @@
 
-# Flask-PydanqlAPI: Automate Your RESTful Endpoint Creation
+# Flask-PydanqlAPI: Create RESTful endpoints automatically
 
 ## Overview
 
-Flask-PydanqlAPI is a Flask extension designed to simplify the creation and management of RESTful APIs backed by PostgreSQL databases. Utilizing the Pydanql library, this extension automates CRUD operations and provides a host of optional features for a more customized experience.
+Flask-PydanqlAPI is a Flask extension designed to simplify the creation and management of RESTful APIs backed by PostgreSQL databases. Utilizing the [Pydanql](https://github.com/jdnumm/pydanql) library, this extension automates CRUD operations and provides a host of optional features for a more customized experience.
 
 ## Features
 
@@ -53,6 +53,20 @@ PydanqlAPI(app)
 
 if __name__ == '__main__':
     app.run(debug=True)
+```
+
+## PostgreSQL Setup
+
+Create a user and a database
+
+```BASH
+psql postgres # Connect to your database
+```
+
+```SQL
+CREATE DATABASE testdb;
+CREATE USER testuser WITH PASSWORD 'testpass';
+GRANT ALL PRIVILEGES ON DATABASE testdb TO testuser;
 ```
 
 ## Documentation
@@ -254,12 +268,12 @@ class Books(Endpoint):
     allowed_query_fields = ['title', 'author', 'year']
 
     # Fields that are exposed in the result
-    visible_fields = ['title', 'author', 'year', 'owner']
+    visible_fields = ['slug', 'title', 'author', 'year', 'owner']
 
     @staticmethod
     def _filter(query_type: str, query_table: str):
         verify_jwt_in_request()
-        if query_type in ['find', 'get', 'create', 'delete']:
+        if query_type in ['find', 'get', 'create', 'update', 'delete']:
             return {'owner': get_jwt_identity()}
 
 

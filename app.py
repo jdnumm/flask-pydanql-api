@@ -35,12 +35,12 @@ class Books(Endpoint):
     allowed_query_fields = ['title', 'author', 'year']
 
     # Fields that are exposed in the result
-    visible_fields = ['title', 'author', 'year', 'owner']
+    visible_fields = ['title', 'author', 'year', 'owner', 'slug']
 
     @staticmethod
     def _filter(query_type: str, query_table: str):
         verify_jwt_in_request()
-        if query_type in ['find', 'get', 'create', 'delete']:
+        if query_type in ['find', 'get', 'create', 'delete', 'update']:
             return {'owner': get_jwt_identity()}
 
 
