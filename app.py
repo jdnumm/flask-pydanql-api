@@ -5,47 +5,52 @@ from datetime import datetime
 from flask_jwt_extended import create_access_token, verify_jwt_in_request, get_jwt_identity, JWTManager
 
 
-class Car(ObjectBaseModel):
-    brand: str
-    model: str
+class Book(ObjectBaseModel):
+    """This is a basic Pydanql model for books"""
+    title: str
+    author: str
     year: int
-    color: str
-    miles: float
     owner: str
 
-    def miles_per_year(self):
+    def years_since_published(self) -> int:
+        """Custom method to calculate the years since the book is published"""
         current_year = datetime.now().year
-        years_since_manufacture = current_year - self.year + 1
-        return float(self.miles / years_since_manufacture)
+        return current_year - self.year + 1
 
-    def description(self):
-        return f"A {self.color} {self.model} build by {self.brand}"
+    def description(self) -> str:
+        """Custom method that generates a description"""
+        return f"The Book \"{self.title}\" by {self.author} was published in the year {self.year}."
 
 
-class Cars(Endpoint):
-    slug = 'cars'  # part of the url to accesse the table 
-    model = Car  # The object for table entries
-    # allowed_query_fields = ['brand', 'color', 'year', 'owner']
-    # visible_fields = ['owner', 'brand', 'color', 'year', 'model', 'slug', 'miles_per_year', 'description']
+class Books(Endpoint):
+    """Use the endpoint class for advanced configuration"""
+
+    # part of the url to accesse the table  /<slug>/find?title__like=Lord
+    slug = 'books'
+
+    # The object for table entries
+    model = Book
+
+    # Fields from the model that can be queried
+    allowed_query_fields = ['title', 'author', 'year']
+
+    # Fields that are exposed in the result
+    visible_fields = ['title', 'author', 'year', 'owner']
 
     @staticmethod
-    def _filter(query_type, query_table):
+    def _filter(query_type: str, query_table: str):
         verify_jwt_in_request()
-        current_user = get_jwt_identity()
-        if query_type == 'find':
-            return {'owner': current_user}
-        if query_type == 'get':
-            return {'owner': current_user}
-        if query_type == 'create':
-            return {'owner': current_user}
-        if query_type == 'delete':
-            return {'owner': current_user}
-
-        return jsonify({'error': 'Not todo', 'detail': 'todo'}), 405
+        if query_type in ['find', 'get', 'create', 'delete']:
+            return {'owner': get_jwt_identity()}
 
 
 app = Flask(__name__)
+
+# Setup JWTManager
 app.config['JWT_SECRET_KEY'] = 'super-secret'
+JWTManager(app)
+
+# Setup FlaskPydanqlAPI
 app.config['PYDANQL_API_DB'] = {
     'database': 'testdb',
     'user': 'testuser',
@@ -53,14 +58,13 @@ app.config['PYDANQL_API_DB'] = {
     'host': 'localhost',
     'port': '5432'
 }
-app.config['PYDANQL_API_ENDPOINTS'] = [Cars]
-
+app.config['PYDANQL_API_ENDPOINTS'] = [Books]
 PydanqlAPI(app)
-JWTManager(app)
 
 
 @app.route('/login', methods=['POST'])
 def login():
+    """Custom route to handle the login with JWTManager"""
     if request.json is None:
         return jsonify({"error": "Bad Request", "message": "No JSON payload provided"}), 400
 

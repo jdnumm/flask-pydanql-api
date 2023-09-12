@@ -27,7 +27,8 @@ class Endpoint():
     visible_fields = None
 
     @staticmethod
-    def _filter(query_type, query_table):
+    def _filter(query_type: str, query_table: str):
+        """Overwrite this method to manipulate querys to the database."""
         return {}
 
     def __init_subclass__(cls, **kwargs):
